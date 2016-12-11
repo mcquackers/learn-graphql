@@ -1,12 +1,17 @@
 package main
 
 import (
+	"database/sql"
+	"log"
 	"math/rand"
 	"net/http"
 
 	"github.com/graphql-go/graphql"
 	gqlhandler "github.com/graphql-go/graphql-go-handler"
+	_ "github.com/mattn/go-sqlite3"
 )
+
+var db *sql.DB
 
 var queryType = graphql.NewObject(graphql.ObjectConfig{
 	Name: "Query",
@@ -16,7 +21,19 @@ var queryType = graphql.NewObject(graphql.ObjectConfig{
 			//Always has to have graphql.ResolveParams and return interface{} and
 			//error.  Ugh, out of date tutorials stink
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-				return "Hello, World!", nil
+				stmt, err := db.Prepare("SELECT name FROM movies WHERE uid = ?")
+				if err != nil {
+					log.Fatal(err)
+				}
+				defer stmt.Close()
+
+				var name string
+				err = stmt.QueryRow("1").Scan(&name)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				return name, nil
 			},
 		},
 		"randInt": &graphql.Field{
@@ -53,6 +70,13 @@ var Schema, _ = graphql.NewSchema(graphql.SchemaConfig{
 })
 
 func main() {
+	var err error
+	db, err = sql.Open("sqlite3", "./simpleDB")
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
 	handler := gqlhandler.New(&gqlhandler.Config{
 		Schema: &Schema,
 		Pretty: true,
