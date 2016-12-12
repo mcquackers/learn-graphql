@@ -35,9 +35,19 @@ var queryType = graphql.NewObject(graphql.ObjectConfig{
 	Fields: graphql.Fields{
 		"latestPost": &graphql.Field{
 			Type: movieType,
+			Args: graphql.FieldConfigArgument{
+				"id": &graphql.ArgumentConfig{
+					Type: graphql.Int,
+				},
+			},
 			//Always has to have graphql.ResolveParams and return interface{} and
 			//error.  Ugh, out of date tutorials stink
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				var id int
+				var ok bool
+				if id, ok = p.Args["id"].(int); !ok {
+					id = 1
+				}
 				stmt, err := db.Prepare("SELECT * FROM movies WHERE uid = ?")
 				if err != nil {
 					log.Fatal(err)
@@ -45,7 +55,7 @@ var queryType = graphql.NewObject(graphql.ObjectConfig{
 				defer stmt.Close()
 
 				var movie Movie
-				err = stmt.QueryRow("1").Scan(&movie.Uid, &movie.Name)
+				err = stmt.QueryRow(id).Scan(&movie.Uid, &movie.Name)
 				if err != nil {
 					log.Fatal(err)
 				}
