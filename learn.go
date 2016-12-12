@@ -2,7 +2,7 @@ package main
 
 import (
 	"database/sql"
-	"log"
+	// "log"
 	"math/rand"
 	"net/http"
 
@@ -33,8 +33,8 @@ var movieType = graphql.NewObject(graphql.ObjectConfig{
 var queryType = graphql.NewObject(graphql.ObjectConfig{
 	Name: "Query",
 	Fields: graphql.Fields{
-		"latestPost": &graphql.Field{
-			Type: movieType,
+		"movie": &graphql.Field{
+			Type: graphql.NewList(movieType),
 			Args: graphql.FieldConfigArgument{
 				"id": &graphql.ArgumentConfig{
 					Type: graphql.Int,
@@ -45,24 +45,71 @@ var queryType = graphql.NewObject(graphql.ObjectConfig{
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 				var id int
 				var ok bool
+				var stmtString string = "SELECT * FROM movies"
+				var movies []Movie
 				if id, ok = p.Args["id"].(int); !ok {
-					id = 1
+					stmt, err := db.Prepare(stmtString)
+					if err != nil {
+						return nil, err
+					}
+					defer stmt.Close()
+
+					rows, err := db.Query(stmtString)
+					if err != nil {
+						return nil, err
+					}
+					defer rows.Close()
+
+					for rows.Next() {
+						var rowMovie Movie
+						err = rows.Scan(&rowMovie.Uid, &rowMovie.Name)
+						if err != nil {
+							return nil, err
+						}
+						movies = append(movies, rowMovie)
+					}
+					return movies, nil
 				}
-				stmt, err := db.Prepare("SELECT * FROM movies WHERE uid = ?")
+				stmtString += " WHERE uid = ?"
+				stmt, err := db.Prepare(stmtString)
 				if err != nil {
-					log.Fatal(err)
+					return nil, err
 				}
 				defer stmt.Close()
-
 				var movie Movie
+
 				err = stmt.QueryRow(id).Scan(&movie.Uid, &movie.Name)
 				if err != nil {
-					log.Fatal(err)
+					return nil, err
 				}
+				movies = append(movies, movie)
 
-				return movie, nil
+				return movies, nil
 			},
 		},
+
+		// var id int
+		// var ok bool
+		// if id, ok = p.Args["id"].(int); !ok {
+		// 	id = 1
+		// } else {
+		// 	stmtString += " WHERE uid = ?"
+		// }
+		// stmt, err := db.Prepare(stmtString)
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
+		// defer stmt.Close()
+		//
+		// var movie Movie
+		// err = stmt.QueryRow(id).Scan(&movie.Uid, &movie.Name)
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
+		//
+		// return movie, nil
+		// },
+		// },
 		"randInt": &graphql.Field{
 			Type: graphql.Int,
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
